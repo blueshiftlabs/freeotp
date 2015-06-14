@@ -121,6 +121,7 @@ public class TokenLayout extends FrameLayout implements View.OnClickListener, Ru
                 setEnabled(false);
                 break;
             case TOTP:
+            case AUTHY:
                 mProgressOuter.setVisibility(View.VISIBLE);
                 animate(mProgressOuter, R.anim.fadein, animate);
                 break;

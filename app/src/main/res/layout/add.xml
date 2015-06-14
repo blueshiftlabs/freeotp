@@ -64,8 +64,8 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
-                        android:digits="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ234567="
-                        android:hint="(Base32)"
+                        android:digits="abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789="
+                        android:hint="(Base32 or Authy key)"
                         android:inputType="textVisiblePassword|textCapCharacters|textNoSuggestions"
                         android:textAppearance="?android:attr/textAppearanceSmall" />
                 </TableRow>
@@ -102,6 +102,13 @@
                             android:layout_height="match_parent"
                             android:layout_weight="1"
                             android:text="HOTP" />
+
+                        <RadioButton
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:text="Authy"
+                            android:id="@+id/authy"
+                            android:layout_weight="1" />
                     </RadioGroup>
                 </TableRow>
 
@@ -130,6 +137,13 @@
                             android:layout_weight="1"
                             android:checked="true"
                             android:text="6" />
+
+                        <RadioButton
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:text="7"
+                            android:id="@+id/digits7"
+                            android:layout_weight="1" />
 
                         <RadioButton
                             android:id="@+id/digits8"

@@ -43,7 +43,7 @@ public class Token {
     }
 
     public static enum TokenType {
-        HOTP, TOTP
+        HOTP, TOTP, AUTHY
     }
 
     private String issuerInt;
@@ -69,6 +69,8 @@ public class Token {
             type = TokenType.TOTP;
         else if (uri.getAuthority().equals("hotp"))
             type = TokenType.HOTP;
+        else if (uri.getAuthority().equals("authy"))
+            type = TokenType.AUTHY;
         else
             throw new TokenUriInvalidException();
 
@@ -102,7 +104,7 @@ public class Token {
             if (d == null)
                 d = "6";
             digits = Integer.parseInt(d);
-            if (digits != 6 && digits != 8)
+            if (digits < 6 || digits > 8)
                 throw new TokenUriInvalidException();
         } catch (NumberFormatException e) {
             throw new TokenUriInvalidException();
@@ -130,7 +132,15 @@ public class Token {
 
         try {
             String s = uri.getQueryParameter("secret");
-            secret = Base32String.decode(s);
+            if (type == TokenType.AUTHY) {
+                // Authy's TOTP key is the *bytes* of a hex string.
+                // No, not the bytes those hex digits represent, a literal string
+                // of the bytes '0'-'9' and 'a'-'f'.
+                // No, it doesn't make sense to me either.
+                secret = s.toLowerCase().getBytes();
+            } else {
+                secret = Base32String.decode(s);
+            }
         } catch (DecodingException e) {
             throw new TokenUriInvalidException();
         } catch (NullPointerException e) {
@@ -161,15 +171,49 @@ public class Token {
             mac.init(new SecretKeySpec(secret, "Hmac" + algo));
 
             // Do the hashing
-            byte[] digest = mac.doFinal(bb.array());
+            byte[] data;
+            if (type == TokenType.AUTHY) {
+                // Authy's HMAC operates on the base-10 ASCII representation of
+                // the moving factor, rather than on the raw factor value (WTF?)
+                data = Long.toString(counter).getBytes();
+            } else {
+                data = bb.array();
+            }
+            byte[] digest = mac.doFinal(data);
 
             // Truncate
             int binary;
             int off = digest[digest.length - 1] & 0xf;
-            binary = (digest[off] & 0x7f) << 0x18;
-            binary |= (digest[off + 1] & 0xff) << 0x10;
-            binary |= (digest[off + 2] & 0xff) << 0x08;
-            binary |= (digest[off + 3] & 0xff);
+            if (type == TokenType.AUTHY) {
+                // Authy tokens are generated like HOTP, but with a different
+                // truncation scheme.
+                //
+                // - The offset is calculated as normal.
+                // - The offset is used as an index into the digest as a *hex* string.
+                //   (This means the offset is in nibbles, not bytes.)
+                // - Seven nibbles are extracted from that offset.
+                // - That number is taken mod 10^7.
+                //
+                // To emulate this, we extract all 8 bytes of the number, then
+                // shift and mask as appropriate to get rid of the extra nibble.
+                long binary_ext = (digest[off/2] & 0xffL) << 0x18;
+                binary_ext |= (digest[off/2 + 1] & 0xffL) << 0x10;
+                binary_ext |= (digest[off/2 + 2] & 0xffL) << 0x08;
+                binary_ext |= (digest[off/2 + 3] & 0xffL);
+
+                if (off % 2 == 0) {
+                    // Even offsets: keep the most significant nibble, lose the least.
+                    binary_ext >>= 4;
+                }
+
+                // Mask off the most significant nibble.
+                binary = (int)(binary_ext & 0x0FFFFFFF);
+            } else {
+                binary = (digest[off] & 0x7f) << 0x18;
+                binary |= (digest[off + 1] & 0xff) << 0x10;
+                binary |= (digest[off + 2] & 0xff) << 0x08;
+                binary |= (digest[off + 3] & 0xff);
+            }
             binary = binary % div;
 
             // Zero pad
@@ -237,6 +281,12 @@ public class Token {
         return digits;
     }
 
+    private long getAuthyMovingFactor(long timestamp) {
+        // I shit you not, this is what Authy actually does for its moving factor
+        // Roughly equivalent, given current timestamp values, to cur / 10000
+        return Long.parseLong(Long.toString(timestamp).substring(0, 9));
+    }
+
     // NOTE: This may change internal data. You MUST save the token immediately.
     public TokenCode generateCodes() {
         long cur = System.currentTimeMillis();
@@ -253,6 +303,14 @@ public class Token {
                    new TokenCode(getHOTP(counter + 1),
                                  (counter + 1) * period * 1000,
                                  (counter + 2) * period * 1000));
+        case AUTHY:
+            long start = (cur / 1000 / period) * 1000 * period;
+            return new TokenCode(getHOTP(getAuthyMovingFactor(cur)),
+                                 start,
+                                 start + (1000*period),
+                    new TokenCode(getHOTP(getAuthyMovingFactor(cur+(1000*period))),
+                            start + (1000*period),
+                            start + (2000*period)));
         }
 
         return null;
@@ -279,6 +337,9 @@ public class Token {
             break;
         case TOTP:
             builder.authority("totp");
+            break;
+        case AUTHY:
+            builder.authority("authy");
             break;
         }
 

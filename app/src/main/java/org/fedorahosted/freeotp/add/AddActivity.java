@@ -51,6 +51,7 @@ public class AddActivity extends GPSActivity implements View.OnClickListener, Co
     private EditText mCounter;
     private Spinner mAlgorithm;
     private RadioButton mHOTP;
+    private RadioButton mAuthy;
 
     private Uri mImageURL;
 
@@ -67,6 +68,7 @@ public class AddActivity extends GPSActivity implements View.OnClickListener, Co
         mCounter = (EditText) findViewById(R.id.counter);
         mAlgorithm = (Spinner) findViewById(R.id.algorithm);
         mHOTP = (RadioButton) findViewById(R.id.hotp);
+        mAuthy = (RadioButton) findViewById(R.id.authy);
 
         // Select the default algorithm
         mAlgorithm.setSelection(SHA1_OFFSET);
@@ -107,13 +109,15 @@ public class AddActivity extends GPSActivity implements View.OnClickListener, Co
                 String secret = Uri.encode(mSecret.getText().toString());
                 String algorithm = mAlgorithm.getSelectedItem().toString().toLowerCase(Locale.US);
                 int interval = Integer.parseInt(mInterval.getText().toString());
-                int digits = ((RadioButton) findViewById(R.id.digits6)).isChecked() ? 6 : 8;
+                int digits = ((RadioButton)findViewById(R.id.digits6)).isChecked() ? 6 :
+                             ((RadioButton)findViewById(R.id.digits7)).isChecked() ? 7 : 8;
 
                 // Create the URI
                 String uri = String.format(Locale.US,
-                        "otpauth://%sotp/%s:%s?secret=%s&algorithm=%s&digits=%d&period=%d",
-                        mHOTP.isChecked() ? "h" : "t", issuer, label,
-                        secret, algorithm, digits, interval);
+                        "otpauth://%s/%s:%s?secret=%s&algorithm=%s&digits=%d&period=%d",
+                        mHOTP.isChecked() ? "hotp" :
+                            mAuthy.isChecked() ? "authy" : "totp",
+                        issuer, label, secret, algorithm, digits, interval);
 
                 // Add optional parameters.
                 if (mHOTP.isChecked()) {

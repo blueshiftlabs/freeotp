@@ -45,7 +45,7 @@
         <item>SHA512</item>
     </string-array>
 
-    <string name="title_activity_manage_tokens">ManageTokens</string>
+    <string name="title_activity_manage_tokens">Authenticator</string>
     <string name="edit_on_phone">Edit On Phone</string>
 
 </resources>
